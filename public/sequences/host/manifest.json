@@ -1,0 +1,18 @@
+{
+  "name": "host",
+  "frameCount": 97,
+  "fps": 12,
+  "poster": "poster.webp",
+  "variants": {
+    "desktop": {
+      "width": 1536,
+      "height": 864,
+      "path": "desktop/frame-{i}.webp"
+    },
+    "mobile": {
+      "width": 768,
+      "height": 432,
+      "path": "mobile/frame-{i}.webp"
+    }
+  }
+}

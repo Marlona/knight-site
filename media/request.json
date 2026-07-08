@@ -1,0 +1,72 @@
+{
+  "videos": {
+    "visionary": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_155806_eb4fac55-029c-46bf-914e-175739760365.mp4",
+    "designer": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_155905_c7ca6a6a-1faf-4e17-9a1e-5690bea45909.mp4",
+    "host": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_155925_274a69e8-c603-46a2-8788-de67c2c17302.mp4",
+    "operator": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_155943_ae98d396-c201-417f-bac0-2c1cb72e0135.mp4"
+  },
+  "images": {
+    "public/images/before-after/staged.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160131_3a6b74ae-27c6-4948-b2dd-1f36538522eb.png",
+      "width": 1920,
+      "height": 1080,
+      "quality": 70
+    },
+    "public/images/before-after/shell.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160606_6868968f-158d-4b65-87a0-cb3a989ef7d8.png",
+      "width": 1920,
+      "height": 1080,
+      "quality": 70
+    },
+    "public/images/projects/ember-suite.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160200_8569a4c3-8f06-46ec-8e71-7f3020ed59f5.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/ember-suite-before.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_162443_6937eb87-4a15-4ccc-81f0-a68c4140ad64.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/willow-vine.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160218_dc0a9ff2-7f9f-4e4c-aa39-6c092d939499.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/willow-vine-before.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_162456_65897b6a-b5bb-46b4-bc28-f2d2578e9da7.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/gathering-house.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160257_e152aebe-d9c3-4cec-a331-60643f69b9fb.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/gathering-house-before.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_162509_60769caa-d4af-47a2-925e-e18828969e2c.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/maison-noir.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160313_9a5b076f-a5c9-4db3-9563-ff31aabb7b9c.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/canopy-loft.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160336_919a1f84-3efd-4e7c-9753-66daac0a2fa4.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/canopy-loft-before.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_162523_f2890eb2-712d-4652-91c0-ab4426bd280d.png",
+      "width": 1280,
+      "height": 960
+    },
+    "public/images/projects/hearth-haven.webp": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3G40KKY51klRWwlR0cCop7P87X4/hf_20260707_160353_1c14f4dc-37df-4837-8c07-bfa0ddd0c485.png",
+      "width": 1280,
+      "height": 960
+    }
+  }
+}

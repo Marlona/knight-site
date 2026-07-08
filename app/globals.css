@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@theme {
+  /* Knight & Ember palette — warm whites, soft stone, oak, matte black, ember accent */
+  --color-ivory: #faf7f1;
+  --color-parchment: #f3eee4;
+  --color-stone-100: #e9e3d5;
+  --color-stone-200: #ddd4c2;
+  --color-taupe: #b3a68e;
+  --color-oak: #a67c52;
+  --color-oak-light: #c9a87c;
+  --color-ember: #b45e2d;
+  --color-ink: #17130f;
+  --color-charcoal: #211c16;
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-manrope);
+
+  --ease-cinematic: cubic-bezier(0.65, 0.05, 0, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: initial;
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-ember);
+  color: var(--color-ivory);
+}
+
+/* Lenis recommended styles */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Editorial display type helpers */
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: "SOFT" 40, "WONK" 0;
+}
+
+.text-editorial {
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+.mono-caps {
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* Glassmorphism */
+.glass {
+  background: color-mix(in srgb, var(--color-ivory) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border: 1px solid color-mix(in srgb, var(--color-ivory) 55%, transparent);
+  box-shadow: 0 24px 80px -32px rgb(23 19 15 / 0.35);
+}
+
+.glass-dark {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  border: 1px solid rgb(250 247 241 / 0.14);
+  color: var(--color-ivory);
+}
+
+/* Hairline rules */
+.hairline-t { border-top: 1px solid rgb(23 19 15 / 0.12); }
+.hairline-b { border-bottom: 1px solid rgb(23 19 15 / 0.12); }
+
+/* Film grain overlay */
+.grain {
+  position: fixed;
+  inset: -100%;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  animation: grain-shift 0.9s steps(4) infinite;
+}
+
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1.5%, 1%); }
+  50% { transform: translate(1%, -1%); }
+  75% { transform: translate(-1%, -1.5%); }
+  100% { transform: translate(0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grain {
+    animation: none;
+  }
+}
+
+/* Numbers that count without jitter */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* SplitText line masking */
+.split-line-mask .line {
+  overflow: hidden;
+}

@@ -1,0 +1,34 @@
+# Media bridge: the Claude Code build container cannot reach Higgsfield's CDN
+# (egress policy), so this workflow downloads the generated footage/stills and
+# runs the frame-extraction pipeline, committing the derived assets back to the
+# branch. Triggered by commits that touch media/request.json.
+name: media-sync
+
+on:
+  push:
+    branches: [main]
+    paths: [media/request.json]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/fetch-media.mjs
+      - run: node scripts/extract-frames.mjs
+      - name: Commit derived media
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/sequences public/images
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "feat: AI-generated cinematic sequences and stills (media-sync)"
+          git push
