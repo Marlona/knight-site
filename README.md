@@ -27,6 +27,41 @@ npm run media:placeholders   # regenerate procedural placeholder sequences/still
 npm run media:frames         # extract sequences from mp4s in media/source/
 ```
 
+## Inquiry form
+
+A full intake form lives at **`/inquiry`** (linked from the final CTA and the
+footer). All options, types, validation, conditional-section logic, and lead
+scoring are in **`lib/inquiry.ts`**; the UI is in `components/inquiry/`. Two
+sections reveal conditionally based on the services selected — a coaching /
+Airbnb-setup block and a design / property-management block. It includes a
+"schedule a consultation?" qualifier, a required acknowledgment, and a hidden
+honeypot for spam.
+
+### Where submissions live + automations
+
+The API route `app/api/inquiry/route.ts` validates the payload, then hands it to
+two **env-gated adapters** so the form runs with zero backend and "turns on"
+with config only — no code change:
+
+- **Storage** (`lib/server/store.ts`) — writes to a **Supabase** `inquiries`
+  table when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set; otherwise
+  logs and appends to `.data/inquiries.jsonl` (dev). Recommended store:
+  Supabase gives a real, queryable database Andrea/a VA can browse, filter, and
+  export in the Table Editor, generous free tier, RLS, and built-in automation
+  hooks. Schema: `supabase/migrations/0001_inquiries.sql`.
+- **Notifications** (`lib/server/notify.ts`) via **Resend** — a branded
+  auto-response to the client (with a booking link when they opt to schedule)
+  and a triage alert to the studio inbox whose subject is tagged
+  `HOT / WARM / COLD` by `scoreLead()` (from the scheduling answer, budget, and
+  stage). Skipped-and-logged until `RESEND_API_KEY` etc. are set.
+
+To go live: copy `.env.example` → `.env.local`, fill in Supabase + Resend,
+apply the migration. For fully decoupled automation, use a Supabase Database
+Webhook → Edge Function instead of emailing from the route (noted in the
+migration). Alternatives if you want something simpler to self-manage:
+Airtable/Google Sheets (non-technical friendly) or an embedded form service
+(Tally/Formspree) — trade control/automation for setup speed.
+
 ## How the cinematic sequences work
 
 Each chapter scrubs an image sequence on a `<canvas>` (Apple product-page

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { footer, site } from "@/lib/content";
 
 export default function Footer() {
@@ -31,6 +32,14 @@ export default function Footer() {
           <div>
             <p className="mono-caps mb-5 text-ivory/50">Contact</p>
             <ul className="space-y-3 text-sm">
+              <li>
+                <Link
+                  href="/inquiry"
+                  className="text-ivory transition-colors hover:text-ember"
+                >
+                  Start an inquiry →
+                </Link>
+              </li>
               <li>
                 <a
                   href={`mailto:${footer.email}`}

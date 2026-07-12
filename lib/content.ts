@@ -247,7 +247,7 @@ export const finalCta = {
   chapter: chapters.operator,
   headline: "Let's Transform Your Property.",
   copy: "Beautiful spaces, run like businesses. Tell me about your property and let's design what it could become.",
-  primary: { label: "Schedule a Consultation", href: "mailto:hello@knightandember.com" }, // TODO client-confirm
+  primary: { label: "Start Your Inquiry", href: "/inquiry" },
   secondary: { label: "View My Portfolio", target: "#showcase" },
 };
 
