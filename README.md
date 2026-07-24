@@ -40,27 +40,43 @@ honeypot for spam.
 ### Where submissions live + automations
 
 The API route `app/api/inquiry/route.ts` validates the payload, then hands it to
-two **env-gated adapters** so the form runs with zero backend and "turns on"
-with config only — no code change:
+**env-gated adapters** so the form runs with zero backend and "turns on" with
+config only — no code change. Storage priority: **Google Sheets → Supabase →
+local file** (`lib/server/store.ts`).
 
-- **Storage** (`lib/server/store.ts`) — writes to a **Supabase** `inquiries`
-  table when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set; otherwise
-  logs and appends to `.data/inquiries.jsonl` (dev). Recommended store:
-  Supabase gives a real, queryable database Andrea/a VA can browse, filter, and
-  export in the Table Editor, generous free tier, RLS, and built-in automation
-  hooks. Schema: `supabase/migrations/0001_inquiries.sql`.
-- **Notifications** (`lib/server/notify.ts`) via **Resend** — a branded
-  auto-response to the client (with a booking link when they opt to schedule)
-  and a triage alert to the studio inbox whose subject is tagged
-  `HOT / WARM / COLD` by `scoreLead()` (from the scheduling answer, budget, and
-  stage). Skipped-and-logged until `RESEND_API_KEY` etc. are set.
+#### Google Sheets (current setup)
 
-To go live: copy `.env.example` → `.env.local`, fill in Supabase + Resend,
-apply the migration. For fully decoupled automation, use a Supabase Database
-Webhook → Edge Function instead of emailing from the route (noted in the
-migration). Alternatives if you want something simpler to self-manage:
-Airtable/Google Sheets (non-technical friendly) or an embedded form service
-(Tally/Formspree) — trade control/automation for setup speed.
+Each submission is POSTed to a Google Apps Script web app bound to the
+inquiries spreadsheet, which appends a row and creates the column headers on
+first write. One-time setup:
+
+1. Open the Sheet → **Extensions → Apps Script**.
+2. Replace the default file with **`google-apps-script/Code.gs`** from this repo.
+3. **Project Settings** (gear) → **Script properties** → add
+   `SHEETS_SHARED_SECRET` = a long random string.
+4. **Deploy → New deployment → Web app**: *Execute as* **Me**, *Who has access*
+   **Anyone** → **Deploy** → authorize → copy the **`/exec`** URL.
+5. In the site, set `GOOGLE_SHEETS_WEBHOOK_URL` (the `/exec` URL) and
+   `SHEETS_SHARED_SECRET` (same value as step 3).
+
+Columns (created automatically, in order): Received · Lead (HOT/WARM/COLD) ·
+Name · Email · Phone · Services · Are you a(n) · Property address · Stage ·
+Budget · Timeline · Wants consultation · Project details · Biggest goal ·
+Challenges · How they heard · Anything else · Coaching · Owns property /
+Has LLC / Looking to / Hosted before / Biggest question · Property type ·
+Services interested in · Ref ID. If a Sheets write fails, the lead is captured
+in the local fallback so it is never lost, and the visitor still sees the
+thank-you.
+
+#### Alternatives
+
+- **Supabase** — set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for a real
+  queryable Postgres store (schema: `supabase/migrations/0001_inquiries.sql`).
+- **Email** (`lib/server/notify.ts`) via **Resend** — a branded client
+  auto-response plus a `HOT/WARM/COLD` studio alert (`scoreLead()`). Off until
+  `RESEND_API_KEY` / `INQUIRY_FROM_EMAIL` / `INQUIRY_OWNER_EMAIL` are set.
+
+Copy `.env.example` → `.env.local` and fill in whichever you use.
 
 ## How the cinematic sequences work
 
