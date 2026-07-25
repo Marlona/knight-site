@@ -136,3 +136,26 @@ asserts the hero canvas painted frames and the stats reached final values.
 Last audit (production build with AI footage, Lighthouse 12): desktop
 **100 perf / 96 a11y / 100 bp / 100 seo**, mobile **93 perf / 95 a11y /
 100 bp / 100 seo**, LCP 0.6s desktop / 2.7s mobile, CLS 0.
+
+## Deploy — Cloudflare Workers (OpenNext)
+
+Configured for Cloudflare Workers via the OpenNext adapter
+(`@opennextjs/cloudflare`), keeping Next's Node.js runtime so `/api/inquiry`
+works unchanged. Config: `wrangler.jsonc` + `open-next.config.ts`.
+
+**Dashboard (Git-connected, auto-deploys on every push):**
+1. Cloudflare dashboard → **Workers & Pages → Create → Workers → Import a
+   repository** → authorize GitHub → pick `Marlona/knight-site` (branch `main`).
+2. Build settings:
+   - Build command: `npx opennextjs-cloudflare build`
+   - Deploy command: `npx wrangler deploy`
+3. **Settings → Variables and Secrets:**
+   - `GOOGLE_SHEETS_WEBHOOK_URL` (text) = the Apps Script `/exec` URL
+   - `SHEETS_SHARED_SECRET` (secret) = the shared secret
+4. Deploy → open the `*.workers.dev` URL. Add a custom domain under the Worker's
+   **Settings → Domains & Routes**.
+
+**CLI alternative:** `npx wrangler login` → `npm run deploy`; set the secret with
+`npx wrangler secret put SHEETS_SHARED_SECRET`.
+
+Local Workers preview: `npm run preview` (put the two env vars in `.dev.vars`).
