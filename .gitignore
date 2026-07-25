@@ -52,3 +52,7 @@ next-env.d.ts
 
 # local inquiry fallback store
 /.data/
+
+# cloudflare / opennext
+.open-next/
+.wrangler/
