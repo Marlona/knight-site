@@ -39,44 +39,60 @@ honeypot for spam.
 
 ### Where submissions live + automations
 
-The API route `app/api/inquiry/route.ts` validates the payload, then hands it to
-**env-gated adapters** so the form runs with zero backend and "turns on" with
-config only — no code change. Storage priority: **Google Sheets → Supabase →
-local file** (`lib/server/store.ts`).
+The API route `app/api/inquiry/route.ts` validates the payload, then emails it
+(`lib/server/notify.ts`) and hands it to an **env-gated store**
+(`lib/server/store.ts`). Everything is config-only — the form runs with zero
+backend and "turns on" real delivery via env vars, no code change.
 
-#### Google Sheets (current setup)
+#### Email capture (current setup — via Resend)
 
-Each submission is POSTed to a Google Apps Script web app bound to the
-inquiries spreadsheet, which appends a row and creates the column headers on
-first write. One-time setup:
+Each inquiry emails **Andrea a formatted alert** with the full submission and a
+`HOT/WARM/COLD` triage tag (`scoreLead()`), and sends the visitor a branded
+confirmation. This is the primary way leads are captured — no database
+required. One-time setup:
 
-1. Open the Sheet → **Extensions → Apps Script**.
-2. Replace the default file with **`google-apps-script/Code.gs`** from this repo.
-3. **Project Settings** (gear) → **Script properties** → add
-   `SHEETS_SHARED_SECRET` = a long random string.
-4. **Deploy → New deployment → Web app**: *Execute as* **Me**, *Who has access*
-   **Anyone** → **Deploy** → authorize → copy the **`/exec`** URL.
-5. In the site, set `GOOGLE_SHEETS_WEBHOOK_URL` (the `/exec` URL) and
-   `SHEETS_SHARED_SECRET` (same value as step 3).
+1. Create a [Resend](https://resend.com) account → **API key**.
+2. Set these as Cloudflare Worker secrets (or `.env.local` in dev):
+   - `RESEND_API_KEY`
+   - `INQUIRY_FROM_EMAIL` — the sender, e.g. `Knight & Ember <hello@theandreaknight.com>`
+   - `INQUIRY_OWNER_EMAIL` — where lead alerts go (Andrea's inbox)
+   - `CONSULT_BOOKING_URL` — *optional*; adds a "Book your consultation" button
+     to the confirmation when the visitor opts to schedule.
 
-Columns (created automatically, in order): Received · Lead (HOT/WARM/COLD) ·
-Name · Email · Phone · Services · Are you a(n) · Property address · Stage ·
-Budget · Timeline · Wants consultation · Project details · Biggest goal ·
-Challenges · How they heard · Anything else · Coaching · Owns property /
-Has LLC / Looking to / Hosted before / Biggest question · Property type ·
-Services interested in · Ref ID. If a Sheets write fails, the lead is captured
-in the local fallback so it is never lost, and the visitor still sees the
-thank-you.
+   ```bash
+   npx wrangler secret put RESEND_API_KEY
+   npx wrangler secret put INQUIRY_FROM_EMAIL
+   npx wrangler secret put INQUIRY_OWNER_EMAIL
+   ```
 
-#### Alternatives
+**Resend domain nuance:** the **owner alert** works with minimal setup (it goes
+to your own inbox). The **client auto-response** goes to arbitrary visitor
+addresses, which Resend only allows once you **verify a sending domain**
+(`theandreaknight.com`). Until then the auto-response is best-effort — if it's
+rejected the submission still succeeds and the owner alert still sends.
 
-- **Supabase** — set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for a real
-  queryable Postgres store (schema: `supabase/migrations/0001_inquiries.sql`).
-- **Email** (`lib/server/notify.ts`) via **Resend** — a branded client
-  auto-response plus a `HOT/WARM/COLD` studio alert (`scoreLead()`). Off until
-  `RESEND_API_KEY` / `INQUIRY_FROM_EMAIL` / `INQUIRY_OWNER_EMAIL` are set.
+**No lead is lost:** every submission is also logged as a single
+`[inquiry:lead] {…full JSON…}` line, recoverable from **Cloudflare Workers
+Logs** (observability is enabled in `wrangler.jsonc`) even if an email send
+fails. The visitor always sees the thank-you.
 
-Copy `.env.example` → `.env.local` and fill in whichever you use.
+> If you previously set `GOOGLE_SHEETS_WEBHOOK_URL` / `SHEETS_SHARED_SECRET` on
+> the Worker, **delete those secrets** (`npx wrangler secret delete
+> GOOGLE_SHEETS_WEBHOOK_URL`) so submissions don't attempt the retired Sheets
+> path first.
+
+#### Adding a database later (optional)
+
+`store.ts` already supports env-gated stores if you want a searchable archive
+beyond email + logs:
+
+- **Cloudflare D1** — the natural free next step on this stack (a native binding,
+  no external service, no idle-pause). Ask to wire the adapter when ready.
+- **Supabase** — set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (schema:
+  `supabase/migrations/0001_inquiries.sql`). Note: free Supabase projects pause
+  after ~7 days idle.
+- **Google Sheets** — still supported via `GOOGLE_SHEETS_WEBHOOK_URL` +
+  `SHEETS_SHARED_SECRET` and `google-apps-script/Code.gs` if you prefer it.
 
 ## How the cinematic sequences work
 

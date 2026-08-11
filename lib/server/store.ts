@@ -59,9 +59,13 @@ async function appendLocal(id: string, tier: LeadTier, data: Inquiry): Promise<v
     await mkdir(".data", { recursive: true });
     await appendFile(".data/inquiries.jsonl", line + "\n");
   } catch {
-    // read-only FS (e.g. serverless) — the console log is the record.
+    // read-only FS (e.g. Cloudflare Workers) — the log line below is the record.
   }
-  console.log(`[inquiry] stored locally ${id} — ${data.name} <${data.email}> [${tier}]`);
+  // Full payload on one tagged line so every lead is recoverable from the
+  // platform log stream (e.g. Cloudflare Workers Logs, observability enabled)
+  // even with no database configured and even if an email send fails. Grep the
+  // `inquiry:lead` tag to retrieve.
+  console.log(`[inquiry:lead] ${line}`);
 }
 
 export async function storeInquiry(

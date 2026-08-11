@@ -67,7 +67,15 @@ export async function notifyOwner(data: Inquiry, id: string, tier: LeadTier): Pr
   const to = process.env.INQUIRY_OWNER_EMAIL;
   const client = await resendClient();
   if (!client || !to) {
-    console.log(`[inquiry] owner notification skipped (email not configured) → ${id}`);
+    // Distinguish "email off entirely" from "email on but owner address missing"
+    // — the latter is a misconfiguration that would silently drop lead alerts.
+    if (client && !to) {
+      console.warn(
+        `[inquiry] RESEND is configured but INQUIRY_OWNER_EMAIL is unset — no lead alert sent for ${id}. Set INQUIRY_OWNER_EMAIL.`,
+      );
+    } else {
+      console.log(`[inquiry] owner notification skipped (email not configured) → ${id}`);
+    }
     return;
   }
 
