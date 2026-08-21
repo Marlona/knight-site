@@ -251,16 +251,17 @@ export const finalCta = {
   secondary: { label: "View My Portfolio", target: "#showcase" },
 };
 
-// TODO client-confirm: all links and contact details below are placeholders.
 export const footer = {
   socials: [
-    { label: "Instagram", href: "#" },
-    { label: "Pinterest", href: "#" },
-    { label: "LinkedIn", href: "#" },
-    { label: "Airbnb Profile", href: "#" },
+    {
+      label: "Nextdoor",
+      href: "https://nextdoor.com/page/knight-and-ember-lilburn-ga?share_platform=10&utm_campaign=1784967382938&share_action_id=ddda0cd4-da13-40f0-a3d7-4117ae2c8e87",
+    },
+    { label: "Google Reviews", href: "https://share.google/uZDujpxP7LIK2uCrN" },
+    { label: "Pinterest", href: "https://pin.it/62l7iBH39" },
   ],
   email: "hello@knightandember.com",
-  phone: "+1 (000) 000-0000",
+  phone: "(404) 590-8940",
   copyright: `© ${new Date().getFullYear()} Knight & Ember. All rights reserved.`,
   mission:
     "Grounded by faith, resilience, and a genuine love for creating meaningful spaces.",

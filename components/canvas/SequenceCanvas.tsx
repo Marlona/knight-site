@@ -53,7 +53,7 @@ const SequenceCanvas = forwardRef<
     const canvas = canvasRef.current;
     const loader = loaderRef.current;
     if (!canvas || !loader) return;
-    const { frameCount } = loader.manifest;
+    const { frameCount } = loader;
     const index = Math.round(progressRef.current * (frameCount - 1));
     const bitmap = loader.nearest(index);
     if (!bitmap) return;
@@ -82,7 +82,7 @@ const SequenceCanvas = forwardRef<
         progressRef.current = Math.max(0, Math.min(1, p));
         const loader = loaderRef.current;
         if (!loader) return;
-        const index = Math.round(progressRef.current * (loader.manifest.frameCount - 1));
+        const index = Math.round(progressRef.current * (loader.frameCount - 1));
         if (index !== lastDrawnRef.current) scheduleDraw();
       },
     }),
