@@ -19,30 +19,46 @@ const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SOURCE_DIR = path.join(ROOT, "media", "source");
-const FPS = 12;
+const DESKTOP_FPS = 12;
+const MOBILE_FPS = 24;
 const DESKTOP = { width: 1536, height: 864, quality: 58 };
-const MOBILE = { width: 768, height: 432, quality: 55 };
+const MOBILE = { width: 900, height: 1600, quality: 66 };
 
 async function extract(name) {
   const input = path.join(SOURCE_DIR, `${name}.mp4`);
   const outBase = path.join(ROOT, "public", "sequences", name);
   const tmp = await mkdtemp(path.join(os.tmpdir(), `frames-${name}-`));
+  const desktopTmp = path.join(tmp, "desktop");
+  const mobileTmp = path.join(tmp, "mobile");
 
   try {
+    await mkdir(desktopTmp, { recursive: true });
+    await mkdir(mobileTmp, { recursive: true });
     execFileSync(
       ffmpegPath,
       [
         "-hide_banner",
         "-loglevel", "error",
         "-i", input,
-        "-vf", `fps=${FPS},scale=${DESKTOP.width}:-2`,
+        "-vf", `fps=${DESKTOP_FPS},scale=${DESKTOP.width}:-2`,
         "-qscale:v", "2",
-        path.join(tmp, "frame-%03d.jpg"),
+        path.join(desktopTmp, "frame-%03d.jpg"),
       ],
       { stdio: "inherit" },
     );
 
-    const jpgs = (await readdir(tmp)).filter((f) => f.endsWith(".jpg")).sort();
+    execFileSync(
+      ffmpegPath,
+      [
+        "-hide_banner", "-loglevel", "error", "-i", input,
+        "-vf", `fps=${MOBILE_FPS},scale=${MOBILE.width}:${MOBILE.height}:force_original_aspect_ratio=increase,crop=${MOBILE.width}:${MOBILE.height}`,
+        "-qscale:v", "2", path.join(mobileTmp, "frame-%03d.jpg"),
+      ],
+      { stdio: "inherit" },
+    );
+
+    const jpgs = (await readdir(desktopTmp)).filter((f) => f.endsWith(".jpg")).sort();
+    const mobileJpgs = (await readdir(mobileTmp)).filter((f) => f.endsWith(".jpg")).sort();
     if (jpgs.length === 0) throw new Error(`No frames decoded from ${input}`);
 
     await rm(outBase, { recursive: true, force: true });
@@ -50,16 +66,12 @@ async function extract(name) {
     await mkdir(path.join(outBase, "mobile"), { recursive: true });
 
     for (let i = 0; i < jpgs.length; i++) {
-      const src = path.join(tmp, jpgs[i]);
+      const src = path.join(desktopTmp, jpgs[i]);
       const num = String(i + 1).padStart(3, "0");
       await sharp(src)
         .resize(DESKTOP.width, DESKTOP.height, { fit: "cover" })
         .webp({ quality: DESKTOP.quality })
         .toFile(path.join(outBase, "desktop", `frame-${num}.webp`));
-      await sharp(src)
-        .resize(MOBILE.width, MOBILE.height, { fit: "cover" })
-        .webp({ quality: MOBILE.quality })
-        .toFile(path.join(outBase, "mobile", `frame-${num}.webp`));
       if (i === 0) {
         await sharp(src)
           .resize(DESKTOP.width, DESKTOP.height, { fit: "cover" })
@@ -67,19 +79,25 @@ async function extract(name) {
           .toFile(path.join(outBase, "poster.webp"));
       }
     }
+    for (let i = 0; i < mobileJpgs.length; i++) {
+      const num = String(i + 1).padStart(3, "0");
+      await sharp(path.join(mobileTmp, mobileJpgs[i]))
+        .webp({ quality: MOBILE.quality })
+        .toFile(path.join(outBase, "mobile", `frame-${num}.webp`));
+    }
 
     const manifest = {
       name,
       frameCount: jpgs.length,
-      fps: FPS,
+      fps: DESKTOP_FPS,
       poster: "poster.webp",
       variants: {
         desktop: { width: DESKTOP.width, height: DESKTOP.height, path: "desktop/frame-{i}.webp" },
-        mobile: { width: MOBILE.width, height: MOBILE.height, path: "mobile/frame-{i}.webp" },
+        mobile: { width: MOBILE.width, height: MOBILE.height, frameCount: mobileJpgs.length, fps: MOBILE_FPS, path: "mobile/frame-{i}.webp" },
       },
     };
     await writeFile(path.join(outBase, "manifest.json"), JSON.stringify(manifest, null, 2));
-    console.log(`extracted: ${name} → ${jpgs.length} frames × 2 variants`);
+    console.log(`extracted: ${name} → ${jpgs.length} desktop / ${mobileJpgs.length} mobile frames`);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }

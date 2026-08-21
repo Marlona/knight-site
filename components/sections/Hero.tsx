@@ -77,7 +77,7 @@ export default function Hero() {
                 {hero.headline.map((line) => (
                   <span
                     key={line}
-                    className="block overflow-hidden text-[clamp(2.6rem,8vw,7rem)]"
+                    className="block overflow-hidden whitespace-nowrap text-[clamp(2rem,8vw,7rem)] sm:text-[clamp(2.6rem,8vw,7rem)]"
                   >
                     <span className="hero-line-inner block">{line}</span>
                   </span>

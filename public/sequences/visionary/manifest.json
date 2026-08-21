@@ -10,8 +10,10 @@
       "path": "desktop/frame-{i}.webp"
     },
     "mobile": {
-      "width": 768,
-      "height": 432,
+      "width": 900,
+      "height": 1600,
+      "frameCount": 193,
+      "fps": 24,
       "path": "mobile/frame-{i}.webp"
     }
   }

@@ -10,6 +10,8 @@
 export type SequenceVariant = {
   width: number;
   height: number;
+  /** Variant-specific count for higher-frame-rate mobile sequences. */
+  frameCount?: number;
   /** Path template relative to the sequence base, `{i}` = 1-based frame, zero-padded to 3. */
   path: string;
 };
@@ -84,11 +86,15 @@ export class SequenceLoader {
     return this.manifest.variants[this.variantKey];
   }
 
+  get frameCount(): number {
+    return this.variant.frameCount ?? this.manifest.frameCount;
+  }
+
   /** Kick off loading all frames in bisection order with bounded concurrency. */
   start(): void {
     if (this.started || this.disposed) return;
     this.started = true;
-    const order = bisectionOrder(this.manifest.frameCount);
+    const order = bisectionOrder(this.frameCount);
     let cursor = 0;
     const next = async (): Promise<void> => {
       while (cursor < order.length && !this.disposed) {
