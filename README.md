@@ -187,7 +187,7 @@ frames. This confirms the excessive retention mechanism; a physical iPhone crash
 log is still required to conclusively attribute the reported Safari termination.
 
 `lib/sequences.ts` now shares a 48 MiB reservation budget and two concurrent decodes
-across all visible sequences. Up to six frame downloads overlap; it loads the
+across all visible sequences. Up to eight frame downloads overlap; it loads the
 target, ten frames ahead in the scroll direction, and three behind,
 closes evicted frames, keeps the nearest available image during scrubbing, and
 holds reservations until canceled decodes settle. Offscreen/background sections
@@ -265,10 +265,11 @@ lag. A 30-target-frames/second regression with 100 ms network latency reproduced
 starvation: the original narrow window canceled 175 requests, finished only six
 frames, and stayed within three frames of the target in 5% of samples.
 
-Directional lookahead, six overlapping fetches with two decode slots, and a
+Directional lookahead, eight overlapping fetches with two decode slots, and a
 600 × 1067 mobile decode size (matching the roughly 585px-wide DPR-capped canvas
 on a 390px phone) improve that same forward/back test to 100%, 186 completed
 frames, zero cancellations, and a 34.19 MiB reservation peak. Original 900 × 1600
-assets remain unchanged. Desktop decode dimensions are unchanged. The shared
+assets remain available. The hero manifest selects a separately encoded
+600 × 1067 mobile-smooth variant generated with `node scripts/mobile-hero-frames.mjs`. Desktop decode dimensions are unchanged. The shared
 48 MiB budget still includes every pending fetch/decode reservation; discarded
 and late images still close. `npm test` includes this latency regression.

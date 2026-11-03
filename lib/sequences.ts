@@ -67,7 +67,7 @@ function pump() {
     // All visible targets precede speculative neighbor frames.
     for (const offset of [0, 1, -1, 2, 3, 4, 5, 6, 7, 8, 9, 10, -2, -3]) {
       for (const loader of loaders) {
-        if (tasks >= 6) return;
+        if (tasks >= 8) return;
         loader.request(offset);
       }
     }

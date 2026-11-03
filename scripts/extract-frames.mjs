@@ -22,7 +22,8 @@ const SOURCE_DIR = path.join(ROOT, "media", "source");
 const DESKTOP_FPS = 12;
 const MOBILE_FPS = 24;
 const DESKTOP = { width: 1536, height: 864, quality: 58 };
-const MOBILE = { width: 900, height: 1600, quality: 66 };
+// Match the mobile canvas and preserve enough decoded lookahead within 48 MiB.
+const MOBILE = { width: 600, height: 1067, quality: 76 };
 
 async function extract(name) {
   const input = path.join(SOURCE_DIR, `${name}.mp4`);
