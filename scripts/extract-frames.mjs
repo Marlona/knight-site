@@ -83,6 +83,7 @@ async function extract(name) {
     for (let i = 0; i < mobileJpgs.length; i++) {
       const num = String(i + 1).padStart(3, "0");
       await sharp(path.join(mobileTmp, mobileJpgs[i]))
+        .resize(MOBILE.width, MOBILE.height, { fit: "cover" })
         .webp({ quality: MOBILE.quality })
         .toFile(path.join(outBase, "mobile", `frame-${num}.webp`));
     }
