@@ -1,12 +1,21 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "knight-site",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "compatibility_date": "2025-05-05",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
-  "observability": { "enabled": true }
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "MAINTENANCE_MODE": "false"
+  },
+  "account_id": "0d5ac19b432ede1de04fc823ce07f915"
 }

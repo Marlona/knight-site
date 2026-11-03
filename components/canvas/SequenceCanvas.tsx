@@ -13,7 +13,6 @@ import {
   SequenceLoader,
   loadManifest,
   sequenceBase,
-  type SequenceManifest,
 } from "@/lib/sequences";
 
 export type SequenceCanvasHandle = {
@@ -25,7 +24,7 @@ const DPR_CAP = 1.5;
 
 /**
  * Scroll-scrubbed image-sequence canvas (Apple-style). Renders the poster
- * immediately (the hero's is the LCP image); frames stream in bisection order
+ * immediately (the hero's is the LCP image); nearby frames load on demand
  * once `activate` fires, and the canvas draws the nearest loaded frame
  * cover-fitted over the poster.
  */
@@ -33,7 +32,7 @@ const SequenceCanvas = forwardRef<
   SequenceCanvasHandle,
   {
     name: string;
-    /** "load" = start after window load (hero); "visible" = pre-warm when near viewport. */
+    /** "load" = start after window load (hero); "visible" = load while intersecting the viewport. */
     activate?: "load" | "visible";
     priority?: boolean;
     className?: string;
@@ -45,7 +44,6 @@ const SequenceCanvas = forwardRef<
   const progressRef = useRef(0);
   const lastDrawnRef = useRef(-1);
   const rafRef = useRef(0);
-  const [manifest, setManifest] = useState<SequenceManifest | null>(null);
   const [hasFrames, setHasFrames] = useState(false);
 
   const draw = useCallback(() => {
@@ -66,7 +64,13 @@ const SequenceCanvas = forwardRef<
     const scale = Math.max(cw / bitmap.width, ch / bitmap.height);
     const dw = bitmap.width * scale;
     const dh = bitmap.height * scale;
-    ctx.drawImage(bitmap, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+    try {
+      ctx.drawImage(bitmap, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+    } catch {
+      loader.pause();
+      setHasFrames(false);
+      return;
+    }
     lastDrawnRef.current = index;
     setHasFrames(true);
   }, []);
@@ -83,86 +87,101 @@ const SequenceCanvas = forwardRef<
         const loader = loaderRef.current;
         if (!loader) return;
         const index = Math.round(progressRef.current * (loader.frameCount - 1));
+        loader.setProgress(progressRef.current);
         if (index !== lastDrawnRef.current) scheduleDraw();
       },
     }),
     [scheduleDraw],
   );
 
-  // Manifest + loader lifecycle.
+  // Only visible sections retain decoded frames. Background tabs release them.
   useEffect(() => {
-    let cancelled = false;
-    let observer: IntersectionObserver | undefined;
-    const onLoad = () => loaderRef.current?.start();
-
-    loadManifest(name).then((m) => {
-      if (cancelled) return;
-      setManifest(m);
-      const isMobile = !window.matchMedia("(min-width: 768px)").matches;
-      const loader = new SequenceLoader(name, m, isMobile ? "mobile" : "desktop", () =>
-        scheduleDraw(),
-      );
-      loaderRef.current = loader;
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; // poster only
-
-      if (activate === "load") {
-        if (document.readyState === "complete") loader.start();
-        else window.addEventListener("load", onLoad, { once: true });
-      } else if (containerRef.current) {
-        observer = new IntersectionObserver(
-          (entries) => {
-            if (entries.some((e) => e.isIntersecting)) {
-              loader.start();
-              observer?.disconnect();
-            }
-          },
-          { rootMargin: "150% 0px" },
-        );
-        observer.observe(containerRef.current);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("load", onLoad);
-      observer?.disconnect();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      loaderRef.current?.dispose();
-      loaderRef.current = null;
-    };
-  }, [name, activate, scheduleDraw]);
-
-  // Size the canvas buffer to its box (DPR-capped) and redraw on resize.
-  useEffect(() => {
+    const controller = new AbortController();
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
+    const mobile = window.matchMedia("(max-width: 767px)");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let visible = false;
+    let loaded = activate !== "load" || document.readyState === "complete";
+    let manifest: Awaited<ReturnType<typeof loadManifest>> | undefined;
     const resize = () => {
+      if (!visible || document.hidden || reduced.matches) return;
       const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
       canvas.width = Math.round(container.clientWidth * dpr);
       canvas.height = Math.round(container.clientHeight * dpr);
       lastDrawnRef.current = -1;
       scheduleDraw();
     };
-    resize();
+    const update = () => {
+      if (visible && loaded && !document.hidden && !reduced.matches) {
+        resize();
+        loaderRef.current?.setProgress(progressRef.current);
+        loaderRef.current?.start();
+      } else {
+        loaderRef.current?.pause();
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+        lastDrawnRef.current = -1;
+        canvas.width = canvas.height = 0;
+        setHasFrames(false);
+      }
+    };
+    const rebuild = () => {
+      loaderRef.current?.dispose();
+      loaderRef.current = null;
+      setHasFrames(false);
+      canvas.width = canvas.height = 0;
+      if (manifest && !reduced.matches && typeof createImageBitmap === "function") {
+        try {
+          loaderRef.current = new SequenceLoader(name, manifest, mobile.matches ? "mobile" : "desktop", scheduleDraw);
+        } catch { /* Invalid manifests leave the independent poster visible. */ }
+      }
+      update();
+    };
+    const onLoad = () => { loaded = true; update(); };
+    const observer = new IntersectionObserver(entries => {
+      visible = entries.some(entry => entry.isIntersecting);
+      update();
+    });
+    observer.observe(container);
     const ro = new ResizeObserver(resize);
     ro.observe(container);
-    return () => ro.disconnect();
-  }, [scheduleDraw]);
+    window.addEventListener("load", onLoad);
+    document.addEventListener("visibilitychange", update);
+    mobile.addEventListener("change", rebuild);
+    reduced.addEventListener("change", rebuild);
+    void loadManifest(name, controller.signal).then(value => {
+      if (controller.signal.aborted) return;
+      manifest = value;
+      rebuild();
+    }).catch(() => { /* Poster remains available on manifest/network failure. */ });
+    return () => {
+      controller.abort();
+      observer.disconnect();
+      ro.disconnect();
+      window.removeEventListener("load", onLoad);
+      document.removeEventListener("visibilitychange", update);
+      mobile.removeEventListener("change", rebuild);
+      reduced.removeEventListener("change", rebuild);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      loaderRef.current?.dispose();
+      loaderRef.current = null;
+      canvas.width = canvas.height = 0;
+    };
+  }, [name, activate, scheduleDraw]);
 
   return (
     <div ref={containerRef} className={`absolute inset-0 overflow-hidden ${className}`}>
-      {manifest && (
-        <Image
-          src={`${sequenceBase(name)}/${manifest.poster}`}
-          alt=""
-          fill
-          priority={priority}
-          sizes="100vw"
-          className="object-cover"
-        />
-      )}
+      <Image
+        src={`${sequenceBase(name)}/poster.webp`}
+        alt=""
+        fill
+        priority={priority}
+        sizes="100vw"
+        className="object-cover"
+      />
       <canvas
         ref={canvasRef}
         data-sequence={name}

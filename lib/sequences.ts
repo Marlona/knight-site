@@ -1,12 +1,3 @@
-/**
- * Scroll-scrubbed image sequences.
- *
- * Each sequence lives at /sequences/<name>/ with a manifest.json describing
- * frame counts and per-breakpoint variants. Frames are fetched in bisection
- * order (ends first, then midpoints) so a partially loaded sequence scrubs
- * coarsely instead of stalling, and decoded off-thread via createImageBitmap.
- */
-
 export type SequenceVariant = {
   width: number;
   height: number;
@@ -31,8 +22,8 @@ export function sequenceBase(name: string): string {
   return `/sequences/${name}`;
 }
 
-export async function loadManifest(name: string): Promise<SequenceManifest> {
-  const res = await fetch(`${sequenceBase(name)}/manifest.json`);
+export async function loadManifest(name: string, signal?: AbortSignal): Promise<SequenceManifest> {
+  const res = await fetch(`${sequenceBase(name)}/manifest.json`, { signal });
   if (!res.ok) throw new Error(`Failed to load sequence manifest: ${name}`);
   return res.json();
 }
@@ -42,36 +33,42 @@ export function framePath(name: string, variant: SequenceVariant, index: number)
   return `${sequenceBase(name)}/${variant.path.replace("{i}", num)}`;
 }
 
-/** Ends first, then recursive midpoints — breadth-first over ranges. */
-export function bisectionOrder(n: number): number[] {
-  if (n <= 0) return [];
-  const seen = new Set<number>();
-  const order: number[] = [];
-  const push = (i: number) => {
-    if (!seen.has(i)) {
-      seen.add(i);
-      order.push(i);
-    }
-  };
-  push(0);
-  if (n > 1) push(n - 1);
-  const queue: Array<[number, number]> = [[0, n - 1]];
-  while (queue.length) {
-    const [lo, hi] = queue.shift()!;
-    if (hi - lo < 2) continue;
-    const mid = (lo + hi) >> 1;
-    push(mid);
-    queue.push([lo, mid], [mid, hi]);
-  }
-  return order;
+// Page-wide accounting includes frames being fetched/decoded. Canvas backing
+// stores and browser decoder working memory are separate from this budget.
+export const FRAME_BUDGET = 48 * 1024 * 1024;
+const loaders = new Set<SequenceLoader>();
+let reservedBytes = 0;
+let jobs = 0;
+let pumping = false;
+
+export function sequenceMemoryStats() {
+  return { bytes: reservedBytes, jobs, budget: FRAME_BUDGET };
 }
 
-const FETCH_CONCURRENCY = 6;
+function pump() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    // All visible targets precede speculative neighbor frames.
+    for (const offset of [0, 1, -1]) {
+      for (const loader of loaders) {
+        if (jobs >= 2) return;
+        loader.request(offset);
+      }
+    }
+  } finally {
+    pumping = false;
+  }
+}
 
 export class SequenceLoader {
-  private bitmaps: Array<ImageBitmap | null>;
+  private frames = new Map<number, ImageBitmap>();
+  private pending = new Map<number, AbortController>();
+  private failed = new Set<number>();
+  private active = false;
   private disposed = false;
-  private started = false;
+  private target = 0;
+  private readonly bytes: number;
 
   constructor(
     private readonly name: string,
@@ -79,62 +76,130 @@ export class SequenceLoader {
     private readonly variantKey: "desktop" | "mobile",
     private readonly onFrameLoaded?: (index: number) => void,
   ) {
-    this.bitmaps = new Array(manifest.frameCount).fill(null);
+    const { width, height } = this.variant;
+    this.bytes = width * height * 4;
+    if (![width, height, this.frameCount].every(n => Number.isSafeInteger(n) && n > 0)
+      || this.bytes > FRAME_BUDGET / 2) throw new Error("Invalid sequence dimensions");
   }
 
-  get variant(): SequenceVariant {
-    return this.manifest.variants[this.variantKey];
+  get variant() { return this.manifest.variants[this.variantKey]; }
+  get frameCount() { return this.variant.frameCount ?? this.manifest.frameCount; }
+
+  start() {
+    if (this.disposed || this.active) return;
+    this.active = true;
+    loaders.add(this);
+    pump();
   }
 
-  get frameCount(): number {
-    return this.variant.frameCount ?? this.manifest.frameCount;
+  setProgress(progress: number) {
+    if (!Number.isFinite(progress)) return;
+    this.target = Math.round(Math.max(0, Math.min(1, progress)) * (this.frameCount - 1));
+    this.trim();
+    for (const [index, controller] of this.pending) {
+      if (Math.abs(index - this.target) > 1) controller.abort();
+    }
+    if (this.active) pump();
   }
 
-  /** Kick off loading all frames in bisection order with bounded concurrency. */
-  start(): void {
-    if (this.started || this.disposed) return;
-    this.started = true;
-    const order = bisectionOrder(this.frameCount);
-    let cursor = 0;
-    const next = async (): Promise<void> => {
-      while (cursor < order.length && !this.disposed) {
-        const index = order[cursor++];
-        try {
-          const res = await fetch(framePath(this.name, this.variant, index));
-          if (!res.ok) continue;
-          const blob = await res.blob();
-          const bitmap = await createImageBitmap(blob);
-          if (this.disposed) {
-            bitmap.close();
-            return;
-          }
-          this.bitmaps[index] = bitmap;
-          this.onFrameLoaded?.(index);
-        } catch {
-          // Skip failed frames; nearest-neighbor lookup covers gaps.
+  private remove(index: number) {
+    const bitmap = this.frames.get(index);
+    if (!bitmap) return;
+    bitmap.close();
+    this.frames.delete(index);
+    reservedBytes -= this.bytes;
+  }
+
+  private nearestIndex() {
+    let best = -1;
+    for (const index of this.frames.keys()) {
+      if (best < 0 || Math.abs(index - this.target) < Math.abs(best - this.target)) best = index;
+    }
+    return best;
+  }
+
+  private trim() {
+    const nearest = this.nearestIndex();
+    for (const index of this.frames.keys()) {
+      if (Math.abs(index - this.target) > 1 && index !== nearest) this.remove(index);
+    }
+  }
+
+  request(offset: number) {
+    const index = this.target + offset;
+    if (!this.active || index < 0 || index >= this.frameCount || this.frames.has(index)
+      || this.pending.has(index) || this.failed.has(index)) return;
+    if (reservedBytes + this.bytes > FRAME_BUDGET && offset === 0) {
+      // Target frames may displace prefetch frames, but never another section's
+      // nearest frame. Neighbor requests cannot cause eviction/refetch loops.
+      for (const loader of loaders) {
+        const nearest = loader.nearestIndex();
+        for (const key of loader.frames.keys()) {
+          if (key !== nearest && reservedBytes + this.bytes > FRAME_BUDGET) loader.remove(key);
         }
       }
-    };
-    for (let i = 0; i < FETCH_CONCURRENCY; i++) void next();
-  }
-
-  /** Nearest loaded frame to `index`, scanning outward. Null until first frame lands. */
-  nearest(index: number): ImageBitmap | null {
-    const n = this.bitmaps.length;
-    const clamped = Math.max(0, Math.min(n - 1, Math.round(index)));
-    if (this.bitmaps[clamped]) return this.bitmaps[clamped];
-    for (let d = 1; d < n; d++) {
-      const lo = clamped - d;
-      const hi = clamped + d;
-      if (lo >= 0 && this.bitmaps[lo]) return this.bitmaps[lo];
-      if (hi < n && this.bitmaps[hi]) return this.bitmaps[hi];
     }
-    return null;
+    if (reservedBytes + this.bytes > FRAME_BUDGET) return;
+    const controller = new AbortController();
+    this.pending.set(index, controller);
+    reservedBytes += this.bytes;
+    jobs++;
+    void this.decode(index, controller);
   }
 
-  dispose(): void {
-    this.disposed = true;
-    for (const bitmap of this.bitmaps) bitmap?.close();
-    this.bitmaps.fill(null);
+  private async decode(index: number, controller: AbortController) {
+    let retained = false;
+    try {
+      const response = await fetch(framePath(this.name, this.variant, index), { signal: controller.signal });
+      if (!response.ok) throw new Error("Frame unavailable");
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      const bitmap = await createImageBitmap(blob, {
+        resizeWidth: this.variant.width, resizeHeight: this.variant.height,
+      });
+      // Decoding itself is not cancellable. Keep its reservation until it
+      // settles and close late results before releasing that reservation.
+      if (controller.signal.aborted || !this.active || this.disposed
+        || Math.abs(index - this.target) > 1
+        || bitmap.width !== this.variant.width || bitmap.height !== this.variant.height) {
+        bitmap.close();
+        if (!controller.signal.aborted && this.active) this.failed.add(index);
+        return;
+      }
+      this.frames.set(index, bitmap);
+      retained = true;
+      this.trim();
+      this.onFrameLoaded?.(index);
+    } catch {
+      if (!controller.signal.aborted) this.failed.add(index);
+    } finally {
+      if (!retained) reservedBytes -= this.bytes;
+      this.pending.delete(index);
+      jobs--;
+      pump();
+    }
   }
+
+  nearest(index: number): ImageBitmap | null {
+    let best: ImageBitmap | null = null;
+    let distance = Infinity;
+    for (const [key, bitmap] of this.frames) {
+      if (Math.abs(key - index) < distance) {
+        best = bitmap;
+        distance = Math.abs(key - index);
+      }
+    }
+    return best;
+  }
+
+  pause() {
+    this.active = false;
+    loaders.delete(this);
+    for (const controller of this.pending.values()) controller.abort();
+    for (const index of this.frames.keys()) this.remove(index);
+    this.failed.clear();
+    pump();
+  }
+
+  dispose() { this.disposed = true; this.pause(); }
 }
