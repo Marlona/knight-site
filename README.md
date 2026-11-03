@@ -175,3 +175,84 @@ works unchanged. Config: `wrangler.jsonc` + `open-next.config.ts`.
 `npx wrangler secret put SHEETS_SHARED_SECRET`.
 
 Local Workers preview: `npm run preview` (put the two env vars in `.dev.vars`).
+
+## Mobile sequence memory and recovery
+
+The previous sequence loader eagerly fetched and retained every decoded frame.
+The production hero manifest has 193 mobile frames at 900 × 1600: 1,111,680,000
+bytes (1.035 GiB) of RGBA pixel storage, before canvas/decoder/browser overhead.
+The canvas DPR cap did not limit decoded image memory. A mobile WebKit production
+sample requested all 193 frames and retained 115,200,000 bytes from only 20 allowed
+frames. This confirms the excessive retention mechanism; a physical iPhone crash
+log is still required to conclusively attribute the reported Safari termination.
+
+`lib/sequences.ts` now shares a 48 MiB reservation budget and two in-flight jobs
+across all visible sequences. It loads the target and its immediate neighbors,
+closes evicted frames, keeps the nearest available image during scrubbing, and
+holds reservations until canceled decodes settle. Offscreen/background sections
+release their frames and canvas buffers. Posters are independent of manifest
+loading. Reduced motion and unavailable decoding retain posters.
+
+The 48 MiB cap covers decoded frames and pending-frame reservations, not total
+browser memory, canvas buffers, compressed responses, or decoder scratch space.
+Mobile WebKit regression testing recorded a 17,280,000-byte decoded-frame peak
+(16.48 MiB), versus 115,200,000 bytes in the capped baseline sample. A simulated
+four-section load peaked at 43.95 MiB, including pending reservations.
+
+Run `npm test` for budget/cancellation/failure/HTTP fallback regressions. Run
+`npm run cf-typegen`, `npm run lint`, `npm run build`, and
+`npx tsc -p tsconfig.worker.json --noEmit` for app and Worker checks. Generated
+Worker runtime types are intentionally excluded from the browser TypeScript
+project to avoid overriding DOM types.
+
+After building OpenNext, run `npx wrangler dev --port 8787`, then:
+
+```sh
+node scripts/verify.mjs http://localhost:8787
+BROWSER=webkit node scripts/verify.mjs http://localhost:8787
+node scripts/verify-memory.mjs http://localhost:8787
+```
+
+The installed OpenNext adapter currently rejects Next 15.5.21 under its support
+policy. Local validation used `npx opennextjs-cloudflare build
+--dangerouslyUseUnsupportedNextVersion`. This override is not added to the default
+build scripts. Upgrade Next/OpenNext in a separately validated maintenance change;
+do not treat the override as a lasting support solution.
+
+### Maintenance page and release operations
+
+`custom-worker.ts` wraps the generated OpenNext handler. HTML GET/HEAD requests
+receive a standalone branded 503 page when the handler throws or returns 5xx.
+API requests, RSC responses, assets and normal 404s retain their original behavior.
+The page requires no JavaScript or external resources; it provides public email,
+phone and retry links, `Retry-After: 300`, and `Cache-Control: no-store`.
+`app/error.tsx` and `app/global-error.tsx` cover recoverable React render errors.
+Failures after streaming headers have already been sent may not become HTTP 5xx;
+those use client recovery when possible. Browser process crashes, DNS failures,
+and a complete Cloudflare outage cannot be intercepted by this wrapper.
+
+`MAINTENANCE_MODE` is `"false"` in Wrangler configuration. To preview it without
+changing production, run:
+
+```sh
+npx wrangler dev --port 8788 --inspector-port 9230 --var MAINTENANCE_MODE:true
+curl -I -H 'Accept: text/html' http://localhost:8788/
+```
+
+For planned maintenance, set the deployed Worker's runtime variable
+`MAINTENANCE_MODE` to `"true"`; restore `"false"` when finished. Source deployments
+restore the configuration value. Static assets run through the wrapper first,
+then delegate to OpenNext, so HTML cannot bypass the maintenance switch.
+
+Before deployment, record `wrangler deployments list` and retain the prior
+version for `wrangler rollback <version-id>`. Validate the version preview before
+promoting, then verify homepage, inquiry page, mobile animation, and normal 404s.
+The production baseline inspected on 2026-11-03 was commit
+`01ef70545e5d874c0ef82a94432a0eaabecffc28`, Cloudflare version `14436971-8de5-4d56-aa21-84320b6cf4d2`.
+Cloudflare's dashboard reported its Git integration disconnected; direct Wrangler
+deployment requires the account containing `theandreaknight.com`.
+
+Physical-device acceptance remains: on the affected iPhone Safari, open the site,
+scroll the entire page repeatedly in both directions, rotate, background/resume,
+open Inquiry and return, and confirm no Safari reload/termination. Automated
+WebKit checks do not substitute for that device test.

@@ -11,7 +11,7 @@
  */
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 const OUT = path.resolve(import.meta.dirname, "..", "verify-output");
@@ -46,7 +46,8 @@ const STOPS = [
 const failures = [];
 
 async function run(viewport) {
-  const browser = await chromium.launch();
+  const browser = await (process.env.BROWSER === "webkit" ? webkit : chromium).launch();
+  let heroPainted = false;
   const page = await browser.newPage({ viewport });
 
   const consoleErrors = [];
@@ -66,16 +67,13 @@ async function run(viewport) {
       else window.scrollTo(0, y);
     }, fraction);
     await page.waitForTimeout(450);
+    heroPainted ||= await page.locator('canvas[data-sequence="visionary"]').getAttribute("data-painted") === "true";
     await page.screenshot({
       path: path.join(OUT, `${viewport.name}-${label}.png`),
     });
   }
 
   // Assert: hero sequence canvas painted at least one frame.
-  const heroPainted = await page.evaluate(() => {
-    const canvas = document.querySelector('canvas[data-sequence="visionary"]');
-    return canvas?.getAttribute("data-painted") === "true";
-  });
   if (!heroPainted) failures.push(`[${viewport.name}] hero canvas never painted a frame`);
 
   // Assert: stats reached final values (we scrolled past them).
