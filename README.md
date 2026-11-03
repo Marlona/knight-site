@@ -186,8 +186,9 @@ sample requested all 193 frames and retained 115,200,000 bytes from only 20 allo
 frames. This confirms the excessive retention mechanism; a physical iPhone crash
 log is still required to conclusively attribute the reported Safari termination.
 
-`lib/sequences.ts` now shares a 48 MiB reservation budget and two in-flight jobs
-across all visible sequences. It loads the target and its immediate neighbors,
+`lib/sequences.ts` now shares a 48 MiB reservation budget and two concurrent decodes
+across all visible sequences. Up to six frame downloads overlap; it loads the
+target, ten frames ahead in the scroll direction, and three behind,
 closes evicted frames, keeps the nearest available image during scrubbing, and
 holds reservations until canceled decodes settle. Offscreen/background sections
 release their frames and canvas buffers. Posters are independent of manifest
@@ -256,3 +257,18 @@ Physical-device acceptance remains: on the affected iPhone Safari, open the site
 scroll the entire page repeatedly in both directions, rotate, background/resume,
 open Inquiry and return, and confirm no Safari reload/termination. Automated
 WebKit checks do not substitute for that device test.
+
+### Scroll responsiveness follow-up
+
+The affected iPhone user confirmed the crash stopped, but reported severe hero
+lag. A 30-target-frames/second regression with 100 ms network latency reproduced
+starvation: the original narrow window canceled 175 requests, finished only six
+frames, and stayed within three frames of the target in 5% of samples.
+
+Directional lookahead, six overlapping fetches with two decode slots, and a
+600 × 1067 mobile decode size (matching the roughly 585px-wide DPR-capped canvas
+on a 390px phone) improve that same forward/back test to 100%, 186 completed
+frames, zero cancellations, and a 34.19 MiB reservation peak. Original 900 × 1600
+assets remain unchanged. Desktop decode dimensions are unchanged. The shared
+48 MiB budget still includes every pending fetch/decode reservation; discarded
+and late images still close. `npm test` includes this latency regression.

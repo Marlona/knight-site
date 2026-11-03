@@ -13,7 +13,7 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs && node scripts/verify-scrubbing.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
